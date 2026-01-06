@@ -1,8 +1,7 @@
 package com.example.pokedex.api
 
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -15,49 +14,48 @@ class PokemonApi {
 
         return connection.run {
             requestMethod = "GET"
+            connectTimeout = 5000
+            readTimeout = 5000
             inputStream.bufferedReader().use { it.readText() }
         }
     }
 
-    suspend fun generatePokemon(): List<PokemonResult> = coroutineScope {
+    suspend fun buscarPokemon(search: String): PokemonResult =
+        withContext(Dispatchers.IO) {
 
-        val ids = (1..151).toList()
+            val responseText =
+                fetch("https://pokeapi.co/api/v2/pokemon/${search.trim().lowercase()}")
 
-        val pokemons = ids.map { id ->
-            async {
+            val json = JSONObject(responseText)
 
-                val responseText = fetch("https://pokeapi.co/api/v2/pokemon/$id")
+            val id = json.getInt("id")
+            val name = json.getString("name")
+            val image =
+                json.getJSONObject("sprites")
+                    .getString("front_default")
 
-                val json = JSONObject(responseText)
+            val typesArray = json.getJSONArray("types")
 
-                val idJson = json.getInt("id")
-                val name = json.getString("name")
-                val image = json.getJSONObject("sprites").getString("front_default")
+            val type1 = typesArray
+                .getJSONObject(0)
+                .getJSONObject("type")
+                .getString("name")
 
-                val typesArray = json.getJSONArray("types")
-                val type1 =
-                    typesArray.getJSONObject(0)
+            val type2 =
+                if (typesArray.length() > 1)
+                    typesArray
+                        .getJSONObject(1)
                         .getJSONObject("type")
                         .getString("name")
+                else
+                    ""
 
-                val type2 =
-                    if (typesArray.length() > 1)
-                        typesArray.getJSONObject(1)
-                            .getJSONObject("type")
-                            .getString("name")
-                    else
-                        ""
-
-                PokemonResult(
-                    id = idJson,
-                    name = name.replaceFirstChar { it.uppercase() },
-                    image = image,
-                    type = type1.replaceFirstChar { it.uppercase() },
-                    type2 = type2.replaceFirstChar { it.uppercase() }
-                )
-            }
-        }.awaitAll()
-
-        pokemons.sortedBy { it.id }
-    }
+            PokemonResult(
+                id = id,
+                name = name.replaceFirstChar { it.uppercase() },
+                image = image,
+                type = type1.replaceFirstChar { it.uppercase() },
+                type2 = type2.replaceFirstChar { it.uppercase() }
+            )
+        }
 }
