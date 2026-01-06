@@ -1,9 +1,11 @@
 package com.example.pokedex.api
 
+import java.io.Serializable
+
 data class PokemonResult(
     val id: Int,
-    val name: String,
     val image: String?,
+    val name: String,
     val type: String,
     val type2: String
-)
+) : Serializable
